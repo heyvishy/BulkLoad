@@ -178,9 +178,10 @@ public class BulkLoad {
 
         	try{
                 logger.info("Starting BulkLoad Process ..........");
-                FileAppender appender;
+                DailyRollingFileAppender appender = null;
     			appender = new DailyRollingFileAppender(new PatternLayout(PatternLayout.DEFAULT_CONVERSION_PATTERN), "bulkLoad.log", "'.'yyyy-MM-dd");
-    			logger.addAppender(appender );
+    			
+    			logger.addAppender(appender);
 
                 //this value would be read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'
                 String currentSuffixValue = "";
@@ -231,10 +232,6 @@ public class BulkLoad {
                 logger.info("In other words time taken : "+timeUsed);
         	}
 
-        	catch(IOException e){
-        		logger.error("Exception in main method "+e.toString());
-        		e.printStackTrace();
-        	}
         	catch(Exception e){
         		logger.error("Exception in main method "+e.toString());
         		e.printStackTrace();
