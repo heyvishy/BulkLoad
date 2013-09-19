@@ -184,7 +184,7 @@ public class BulkLoad {
     			logger.addAppender(appender);
 
                 //this value would be read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'
-                String currentSuffixValue = "";
+                String currentSuffixValue = "_1";
                 
                 long startTime = System.currentTimeMillis();
 
