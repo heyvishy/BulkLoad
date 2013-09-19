@@ -23,8 +23,6 @@ public class PropertiesFileReader {
 		try {  
 		        properties.load(new FileInputStream("BulkLoadJob.properties")); 
 		        
-		        //System.out.println(" jarLocation = "+properties.getProperty("jarLocation"));
-		        //System.out.println(" keyspace = "+properties.getProperty("Keyspace"));
 		        
 		        String key; 
 		        Enumeration e = properties.propertyNames(); 
