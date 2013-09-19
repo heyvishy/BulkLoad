@@ -1,4 +1,4 @@
-package com.wmg;
+package com.wmg.utilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;

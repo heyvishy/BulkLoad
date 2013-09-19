@@ -1,4 +1,4 @@
-package com.wmg;
+package com.wmg.utilities;
 
 import com.netflix.astyanax.AstyanaxContext;
 import com.netflix.astyanax.Keyspace;
