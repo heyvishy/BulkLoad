@@ -178,10 +178,9 @@ public class BulkLoad {
 
         	try{
                 logger.info("Starting BulkLoad Process ..........");
-                DailyRollingFileAppender appender = null;
-    			appender = new DailyRollingFileAppender(new PatternLayout(PatternLayout.DEFAULT_CONVERSION_PATTERN), "bulkLoad.log", "'.'yyyy-MM-dd");
-    			
-    			logger.addAppender(appender);
+                //DailyRollingFileAppender appender = null;
+    			//appender = new DailyRollingFileAppender(new PatternLayout(PatternLayout.DEFAULT_CONVERSION_PATTERN), "bulkLoad.log", "'.'yyyy-MM-dd");
+    			//logger.addAppender(appender);
 
                 //this value would be read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'
                 String currentSuffixValue = "_1";
