@@ -15,10 +15,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.log4j.DailyRollingFileAppender;
-import org.apache.log4j.FileAppender;
 import org.apache.log4j.Logger;
-import org.apache.log4j.PatternLayout;
 
 public class BulkLoad {
 
@@ -43,7 +40,7 @@ public class BulkLoad {
         }
 
         //   e.g  hdfsDirectory = '/data/raw/musicmetrics/facebook'
-        public static List<String> getFilePaths(String hdfsDirectory){
+        public static List<String> getHDFSFilePaths(String hdfsDirectory){
 
         	   Process process ;
                List<String> filePaths = new ArrayList<String>();
@@ -86,37 +83,30 @@ public class BulkLoad {
                 return filePaths;
         }
 
-        public static void doBulkLoad(String cfName,String fullFilePath){
-        	Properties properties = new Properties();      
+        
+        //executes  for e.g--> hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData CF_100;
+        public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
+        		
         	Process process;
-                try
+        		try
                 {
-                    //sudo -u hdfs hadoop jar /usr/local/code/musicmetric/MMFBData.jar /user/VishalS/facebook-data.tsv MusicMetricData CF_162
-    		        properties.load(new FileInputStream("BulkLoadJob.properties"));
-    		        String jarLocation = properties.getProperty("jarLocation");
-    		        String keyspace = properties.getProperty("Keyspace");
-    		        
-    		        //logger.info(" jarLocation = "+jarLocation);
-    		        //logger.info(" keyspace = "+keyspace);
-
-                    String[] params =  new String[9];
+                    String[] params =  new String[10];
                     params[0] = "sudo";
                     params[1] = "-u";
-                    params[2] = "hdfs";
+                    params[2] = jobUser;
                     params[3] = "hadoop";
                     params[4] = "jar";
-                    //params[5] = "/usr/local/code/musicmetric/MMFBData.jar";
                     params[5]= jarLocation;
-                    // params[6] = /user/VishalS/facebook-data.tsv
                     params[6] = fullFilePath;
-                    //params[7] = "MusicMetricData";
-                    params[7] = keyspace;
-                    params[8] = cfName;
+                    params[7] = cassandraHost;
+                    params[8] = keyspace;
+                    params[9] = cfName;
 
-                    logger.info("Began upload for Column Family --> "+cfName);
+                    logger.info("bulk load command params "+Arrays.toString(params));
                     long startTime = System.currentTimeMillis();
 
                     process = new ProcessBuilder(params).start();
+                    
                     InputStream is = process.getInputStream();
                     InputStreamReader isr = new InputStreamReader(is);
                     BufferedReader br = new BufferedReader(isr);
@@ -138,7 +128,7 @@ public class BulkLoad {
         }
 
         //gets HashMap  of (key:HDFS dir,value: cfname) based on data in config.properties file
-    	public static HashMap<String, String> getFilePathCFMapping(String currentSuffixValue) {
+    	public static HashMap<String, String> loadCFMapping(String suffixValue) {
     		Properties prop = new Properties();
         	HashMap<String,String> filePathCFMapping  =  new HashMap<String,String>();
         	try 
@@ -152,8 +142,8 @@ public class BulkLoad {
 		        	logger.info(key+" "+prop.getProperty(key)); 
 
 		        	String dirName = key;
-		        	//Appends the suffix-key value to cfName in order to point to latest CF Name
-        			String cfName = prop.getProperty(key)+currentSuffixValue;
+		        	//Appends the suffix-key value to cfName
+        			String cfName = prop.getProperty(key)+suffixValue;
         			
         			logger.info("filePath = "+dirName);
         			logger.info("CF Name = "+cfName);
@@ -178,19 +168,27 @@ public class BulkLoad {
 
         	try{
                 logger.info("Starting BulkLoad Process ..........");
-                //DailyRollingFileAppender appender = null;
-    			//appender = new DailyRollingFileAppender(new PatternLayout(PatternLayout.DEFAULT_CONVERSION_PATTERN), "bulkLoad.log", "'.'yyyy-MM-dd");
-    			//logger.addAppender(appender);
 
-                //this value would be read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'
-                String currentSuffixValue = "_1";
-                
                 long startTime = System.currentTimeMillis();
-
-                //Step 1 : Get Mapping from config file
-                HashMap<String,String> dirCFNameMapping = getFilePathCFMapping(currentSuffixValue);
+                Properties properties = new Properties();  
+            	properties.load(new FileInputStream("BulkLoadJob.properties"));
+		        
+            	String jobUser = properties.getProperty("jobUser");
+            	String jarLocation = properties.getProperty("jarLocation");
+		        String keyspace = properties.getProperty("Keyspace");
+		        String cassandraHost = properties.getProperty("cassandraHost");
+               //this value would be based on value read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'.If current is '_1' apply '_2', so as to upload to  _2 tables
+                String applySuffixValue = properties.getProperty("applySuffixValue"); // "_1";
                 
-                //Step 2: Iterate over Mapping
+                if(applySuffixValue.isEmpty()){
+                	logger.info("No suffix value to apply.Exiting BulkLoad!!");
+                	System.exit(0);
+                }
+                
+                //Step 1 : Load CF Mapping from config file
+                HashMap<String,String> dirCFNameMapping = loadCFMapping(applySuffixValue);
+                
+                //Step 2: Iterate over Mapping and bulkLoad data
         		if(dirCFNameMapping.size()>0){
         			Iterator it = dirCFNameMapping.entrySet().iterator();
         			while(it.hasNext()){
@@ -200,16 +198,15 @@ public class BulkLoad {
         				logger.info(dirPath+" --> "+cfName);
         				
         				//Step 3 : Get all files for each Mapped dir
-                        List<String> files = getFilePaths(dirPath);
+                        List<String> files = getHDFSFilePaths(dirPath);
                         logger.info("No. of files found under HDFS dir "+ dirPath + " : "+files.size());
                         
-                        //Step 4 : load data from each file->CF
+                        //Step 4 : load data from each file->CF Mapping
                         for(String filePath:files){
                             logger.info("Doing file upload for file "+filePath);
-                            doBulkLoad(cfName,filePath);
+                            doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
                             logger.info("Completed  "+filePath);
                         }
-
         			}
         		}
         		else{
