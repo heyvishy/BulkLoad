@@ -21,8 +21,7 @@ public class PropertiesFileReader {
 		// TODO Auto-generated method stub
 		Properties properties = new Properties();  
 		try {  
-		        properties.load(new FileInputStream("BulkLoadJob.properties")); 
-		        
+		        properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
 		        
 		        String key; 
 		        Enumeration e = properties.propertyNames(); 

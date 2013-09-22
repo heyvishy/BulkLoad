@@ -5,6 +5,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -20,6 +23,35 @@ import org.apache.log4j.Logger;
 public class BulkLoad {
 
 		public static Logger logger = Logger.getLogger(BulkLoad.class);
+		
+
+		/*
+		 * Applies value 'applySuffixValue' for key 'key' in table 'tableName'
+		 */
+		public static void updateSuffixValue(String serviceUrl,String tableName ,String key,String applySuffixValue){
+			URL url;
+			String completeURL=serviceUrl+"/"+tableName+"/"+key;
+			try 
+			{
+				//url = new URL("http://musicmetrics.musicmetric.dspdev.wmg.com/api/v1/music-metrics/MUSICMETRIC_CONFIG/suffix-key");
+				url = new URL(completeURL);
+				
+				HttpURLConnection httpCon = (HttpURLConnection) url.openConnection();
+				httpCon.setDoOutput(true);
+				httpCon.setRequestMethod("PUT");
+				OutputStreamWriter out = new OutputStreamWriter(
+				httpCon.getOutputStream());
+				out.write(applySuffixValue);
+				out.close();
+				httpCon.getInputStream();
+				//httpCon.disconnect();
+			
+			} 			
+			catch(Exception e){
+				logger.info("completeURL "+completeURL);
+				logger.error("exception in updateSuffixValue --> "+e.toString());
+			}
+		}
 
         public static String filterfilePath(String hadoopListCommandOutput){
             //-rwxr-x---   3 wmgload  hdevel   82028513 2013-09-13 12:45 /data/raw/musicmetrics/facebook/part-r-00000.gz
@@ -177,8 +209,14 @@ public class BulkLoad {
             	String jarLocation = properties.getProperty("jarLocation");
 		        String keyspace = properties.getProperty("Keyspace");
 		        String cassandraHost = properties.getProperty("cassandraHost");
-               //this value would be based on value read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'.If current is '_1' apply '_2', so as to upload to  _2 tables
+               
+		        //String currentSuffixValue = read suffixValue from MUSICMETRIC_CONFIG table
+		        
+		        //this value would be based on value read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'.If current is '_1' apply '_2', so as to upload to  _2 tables
                 String applySuffixValue = properties.getProperty("applySuffixValue"); // "_1";
+                String serviceURL = properties.getProperty("serviceURL"); 
+                String suffixKey = properties.getProperty("suffixKey");
+                String configTable = properties.getProperty("configTable");
                 
                 if(applySuffixValue.isEmpty()){
                 	logger.info("No suffix value to apply.Exiting BulkLoad!!");
@@ -218,6 +256,10 @@ public class BulkLoad {
                 long endTime = System.currentTimeMillis();
                 long millis = endTime - startTime;
                 logger.info("Bulk Load Process Finished !!! ");
+                //update the suffixValue in MUSICMETRIC_CONFIG value to applySuffixValue
+                updateSuffixValue(serviceURL,configTable,suffixKey,applySuffixValue);
+                //doPut();
+                
                 logger.info("Overall Upload Process took total " + (endTime - startTime) + " milliseconds");
 
                 String timeUsed = String.format("%d min, %d sec",
