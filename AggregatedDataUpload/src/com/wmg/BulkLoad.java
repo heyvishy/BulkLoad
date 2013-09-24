@@ -31,7 +31,7 @@ public class BulkLoad {
 			  cmd = re.exec("java -jar cassa.jar write "+suffixValue); 
 			  output =  new BufferedReader(new InputStreamReader(cmd.getInputStream()));
 			  resultOutput = output.readLine();
-			  System.out.println("resultOutput -->"+resultOutput);
+			  System.out.println("updateConfigValue Output -->"+resultOutput);
 			} 
 			catch (IOException e){
 			  e.printStackTrace();
@@ -49,16 +49,20 @@ public class BulkLoad {
 		}
 
 		public static String readConfigValue(String suffixkey){
+			String suffixValue="";
 			Process cmd;
 			Runtime re = Runtime.getRuntime();
 			BufferedReader output = null;
 			String resultOutput="";
 			try
 			{ 
-			  cmd = re.exec("java -jar cassa.jar read "+suffixkey); 
+			  cmd = re.exec("java -jar cassa.jar read "+suffixkey);
 			  output =  new BufferedReader(new InputStreamReader(cmd.getInputStream()));
 			  resultOutput = output.readLine();
-			  System.out.println("resultOutput -->"+resultOutput);
+			  //below hack is to skip all output lines (e.g logger statements) until it find the text '_1 or _2'
+	          while ((resultOutput = output.readLine()) != null) {
+	              suffixValue = resultOutput;
+	         }
 			} 
 			catch (IOException e){
 			  e.printStackTrace();
@@ -73,38 +77,10 @@ public class BulkLoad {
 					e.printStackTrace();
 				}
 			}
-			return resultOutput;
+			return suffixValue;
 		}
 
-		//public static 
-/*		
-		// * Applies value 'applySuffixValue' for key 'key' in table 'tableName'
-		 
-		public static void updateSuffixValue(String serviceUrl,String tableName ,String key,String applySuffixValue){
-			URL url;
-			String completeURL=serviceUrl+"/"+tableName+"/"+key;
-			try 
-			{
-				//url = new URL("http://musicmetrics.musicmetric.dspdev.wmg.com/api/v1/music-metrics/MUSICMETRIC_CONFIG/suffix-key");
-				url = new URL(completeURL);
-				
-				HttpURLConnection httpCon = (HttpURLConnection) url.openConnection();
-				httpCon.setDoOutput(true);
-				httpCon.setRequestMethod("PUT");
-				OutputStreamWriter out = new OutputStreamWriter(
-				httpCon.getOutputStream());
-				out.write(applySuffixValue);
-				out.close();
-				httpCon.getInputStream();
-				//httpCon.disconnect();
-			
-			} 			
-			catch(Exception e){
-				logger.info("completeURL "+completeURL);
-				logger.error("exception in updateSuffixValue --> "+e.toString());
-			}
-		}
-*/
+
         public static String filterfilePath(String hadoopListCommandOutput){
             //-rwxr-x---   3 wmgload  hdevel   82028513 2013-09-13 12:45 /data/raw/musicmetrics/facebook/part-r-00000.gz
         	//-rwxr-x---   3 hiveload hdevel   772625   2013-09-16 12:42 /data/raw/musicmetrics/amazon_sales/amazon_sales_data.tsv.gz
@@ -263,23 +239,27 @@ public class BulkLoad {
 		        String cassandraHost = properties.getProperty("cassandraHost");
                 
 
-		        //String currentSuffixValue = read suffixValue from MUSICMETRIC_CONFIG table
-        		String suffixKeyValue = readConfigValue("suffix-key");
-
-        		//String suffixKeyValue = CassandraWriter.readConfigValue("suffix-key");
-        		logger.info("current suffixKeyValue "+suffixKeyValue);
-
-               
+        		//String currentSuffixKey = CassandraWriter.readConfigValue("suffix-key");
 		        
-		        //this value would be based on value read from MUSICMETRIC_CONFIG table under keyspace 'MusicMetricData'.If current is '_1' apply '_2', so as to upload to  _2 tables
-                String applySuffixValue = properties.getProperty("applySuffixValue"); // "_1";
-                
-/*                String serviceURL = properties.getProperty("serviceURL"); 
-                String suffixKey = properties.getProperty("suffixKey");
-                String configTable = properties.getProperty("configTable");
-*/                
+                //String applySuffixValue = properties.getProperty("applySuffixValue");
+        		String applySuffixValue = properties.getProperty("applySuffixValue")==null?"":properties.getProperty("applySuffixValue");
+
+                String currentSuffixKey="";
+
+		        //If this value is present, then it overrides the whole switch mechanism on bulkLoad side, because then we don't use the suffix-key value present in table. 
                 if(applySuffixValue.isEmpty()){
-                	logger.info("No suffix value to apply.Exiting BulkLoad!!");
+                	logger.info("applySuffixValue is blank so reading value from config table");
+    		        currentSuffixKey = readConfigValue("suffix-key");
+            		logger.info("current suffixKey -> "+currentSuffixKey);
+            		if(currentSuffixKey.equals("_1"))
+            			applySuffixValue="_2";
+            		else if(currentSuffixKey.equals("_2"))
+            			applySuffixValue="_1";
+                }
+		        
+                //Program exits if we do not know the suffix value to apply to cfNames
+                if(applySuffixValue.isEmpty() && currentSuffixKey.isEmpty()){
+                	logger.info("No suffix value to apply. Exiting BulkLoad!!");
                 	System.exit(0);
                 }
                 
@@ -312,13 +292,14 @@ public class BulkLoad {
         			logger.info("Ending BulkLoad");
         		}
 
+        		
                 
                 long endTime = System.currentTimeMillis();
                 long millis = endTime - startTime;
                 logger.info("Bulk Load Process Finished !!! ");
                 //update the suffixValue in MUSICMETRIC_CONFIG value to applySuffixValue
-                //updateSuffixValue(serviceURL,configTable,suffixKey,applySuffixValue);
                 //CassandraWriter.writeConfigValue(applySuffixValue);
+                logger.info("Updating suffix-key value with -->"+applySuffixValue);
                 updateConfigValue(applySuffixValue);
                 logger.info("Updated the MUSICMETRIC_CONFIG table");
 

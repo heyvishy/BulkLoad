@@ -1,26 +1,25 @@
 package com.wmg.utilities;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.Properties;
 
 public class PropertiesFileReader {
 
-	/*      public static File[] finder( String dirName){
-    File dir = new File(dirName);
-
-    return dir.listFiles(new FilenameFilter() {
-             public boolean accept(File dir, String filename)
-                  { return filename.endsWith(".gz"); }
-    } );
-
-}
-*/
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		Properties properties = new Properties();  
-		try {  
+	public static void main(String[] args) throws FileNotFoundException, IOException {
+		Properties properties = new Properties();
+		
+		properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
+		String key = properties.getProperty("serviceURL")==null?"":properties.getProperty("serviceURL");
+		
+		System.out.println("key -->"+key);
+		if(key.isEmpty()){
+			System.out.println("key is blank");
+		}
+		
+/*		try {  
 		        properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
 		        
 		        String key; 
@@ -37,6 +36,6 @@ public class PropertiesFileReader {
 		catch (Exception e){
 			e.printStackTrace();
 		}
-	}
+*/	}
 
 }
