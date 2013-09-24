@@ -11,15 +11,15 @@ public class PropertiesFileReader {
 	public static void main(String[] args) throws FileNotFoundException, IOException {
 		Properties properties = new Properties();
 		
-		properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
+/*		properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
 		String key = properties.getProperty("serviceURL")==null?"":properties.getProperty("serviceURL");
 		
 		System.out.println("key -->"+key);
 		if(key.isEmpty()){
 			System.out.println("key is blank");
 		}
-		
-/*		try {  
+*/		
+		try {  
 		        properties.load(new FileInputStream("properties/BulkLoadJob.properties")); 
 		        
 		        String key; 
@@ -36,6 +36,6 @@ public class PropertiesFileReader {
 		catch (Exception e){
 			e.printStackTrace();
 		}
-*/	}
+	}
 
 }
