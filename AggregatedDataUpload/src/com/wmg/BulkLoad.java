@@ -144,7 +144,7 @@ public class BulkLoad {
         }
 
         
-        //executes  for e.g--> hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData CF_100;
+        //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
         public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
         		
         	Process process;
