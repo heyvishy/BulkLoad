@@ -143,7 +143,83 @@ public class BulkLoad {
                 return filePaths;
         }
 
-        
+
+        public static void doHDFSDirBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String dirPath){
+    		
+//        	Process process;
+        	String s = null;
+        	Process p ; 
+        		try
+                {
+                    String[] params =  new String[10];
+                    params[0] = "sudo";
+                    params[1] = "-u";
+                    params[2] = jobUser;
+                    params[3] = "hadoop";
+                    params[4] = "jar";
+                    params[5]= jarLocation;
+                    params[6] = dirPath+"/";
+                    params[7] = cassandraHost;
+                    params[8] = keyspace;
+                    params[9] = cfName;
+
+                    logger.info("doHDFSDirBulkLoad command params "+Arrays.toString(params));
+                    long startTime = System.currentTimeMillis();
+
+            		StringBuilder commandString = new StringBuilder();
+            		for(String str : params) {
+            			commandString.append(" ");
+            			commandString.append(str);
+            		}
+
+                    String command = commandString.toString();
+                    logger.info("command about to be executed.... "+command);
+                    p = Runtime.getRuntime().exec(command);
+                    BufferedReader stdInput = new BufferedReader(new 
+                            InputStreamReader(p.getInputStream()));
+
+                       BufferedReader stdError = new BufferedReader(new 
+                            InputStreamReader(p.getErrorStream()));
+
+                       // read the output from the command
+                       logger.info("Here is the standard output of the command:\n");
+                       while ((s = stdInput.readLine()) != null) {
+                    	   logger.info(s);
+                       }
+                       
+                       // read any errors from the attempted command
+                       logger.info("Here is the standard error of the command (if any):\n");
+                       while ((s = stdError.readLine()) != null) {
+                    	   logger.info(s);
+                       }
+                       
+                       
+                       stdError.close();
+                       stdInput.close();
+
+                    
+/*                    process = new ProcessBuilder(params).start();
+                    
+                    InputStream is = process.getInputStream();
+                    InputStreamReader isr = new InputStreamReader(is);
+                    BufferedReader br = new BufferedReader(isr);
+                    String line;
+
+                    while ((line = br.readLine()) != null) {
+                              logger.info(line);
+                    }
+*/
+                    long endTime = System.currentTimeMillis();
+                    logger.info("Completed upload for Column Family --> "+cfName);
+                    logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
+                }
+
+                catch (Exception e) {
+                    logger.error("Exception occurred in upload of CF : "+ cfName + " for input HDFS dir : "+dirPath);
+                    e.printStackTrace();
+                }
+        }
+
         //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
         public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
         		
@@ -199,7 +275,7 @@ public class BulkLoad {
 		        while (e.hasMoreElements()) 
 		        { 
 		        	key = (String)e.nextElement(); 
-		        	logger.info(key+" "+prop.getProperty(key)); 
+		        	//logger.info(key+" "+prop.getProperty(key)); 
 
 		        	String dirName = key;
 		        	//Appends the suffix-key value to cfName
@@ -255,6 +331,8 @@ public class BulkLoad {
             			applySuffixValue="_2";
             		else if(currentSuffixKey.equals("_2"))
             			applySuffixValue="_1";
+            		
+            		logger.info("applySuffixValue  -> "+applySuffixValue);
                 }
 		        
                 //Program exits if we do not know the suffix value to apply to cfNames
@@ -274,7 +352,8 @@ public class BulkLoad {
         				String dirPath = (String) entry.getKey();
         				String cfName=  (String) entry.getValue();
         				logger.info(dirPath+" --> "+cfName);
-        				
+
+/*        				
         				//Step 3 : Get all files for each Mapped dir
                         List<String> files = getHDFSFilePaths(dirPath);
                         logger.info("No. of files found under HDFS dir "+ dirPath + " : "+files.size());
@@ -282,9 +361,13 @@ public class BulkLoad {
                         //Step 4 : load data from each file->CF Mapping
                         for(String filePath:files){
                             logger.info("Doing file upload for file "+filePath);
-                            doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
+                            //doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
                             logger.info("Completed  "+filePath);
                         }
+*/                        
+                        
+        				doHDFSDirBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,dirPath);
+
         			}
         		}
         		else{
@@ -297,11 +380,11 @@ public class BulkLoad {
                 long endTime = System.currentTimeMillis();
                 long millis = endTime - startTime;
                 logger.info("Bulk Load Process Finished !!! ");
-                //update the suffixValue in MUSICMETRIC_CONFIG value to applySuffixValue
-                //CassandraWriter.writeConfigValue(applySuffixValue);
-                logger.info("Updating suffix-key value with -->"+applySuffixValue);
-                updateConfigValue(applySuffixValue);
-                logger.info("Updated the MUSICMETRIC_CONFIG table");
+              
+                
+                //logger.info("Updating suffix-key value with -->"+applySuffixValue);
+                //updateConfigValue(applySuffixValue);
+                //logger.info("Updated the MUSICMETRIC_CONFIG table");
 
                 
                 logger.info("Overall Upload Process took total " + (endTime - startTime) + " milliseconds");
