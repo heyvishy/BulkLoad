@@ -2,6 +2,7 @@ package com.wmg;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -17,78 +18,139 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 
+import com.netflix.astyanax.AstyanaxContext;
+import com.netflix.astyanax.Keyspace;
+import com.netflix.astyanax.connectionpool.NodeDiscoveryType;
+import com.netflix.astyanax.connectionpool.OperationResult;
+import com.netflix.astyanax.connectionpool.exceptions.ConnectionException;
+import com.netflix.astyanax.connectionpool.impl.ConnectionPoolConfigurationImpl;
+import com.netflix.astyanax.connectionpool.impl.CountingConnectionPoolMonitor;
+import com.netflix.astyanax.impl.AstyanaxConfigurationImpl;
+import com.netflix.astyanax.model.ColumnFamily;
+import com.netflix.astyanax.model.ColumnList;
+import com.netflix.astyanax.serializers.StringSerializer;
+import com.netflix.astyanax.thrift.ThriftFamilyFactory;
+
 public class BulkLoad {
 
 		public static Logger logger = Logger.getLogger(BulkLoad.class);
+		private static  com.netflix.astyanax.Keyspace keyspace;
+		private static AstyanaxContext<Keyspace> keyspaceContext;
 		
-		public static void updateConfigValue(String suffixValue){
-			Process cmd;
-			Runtime re = Runtime.getRuntime();
-			BufferedReader output = null;
-			String resultOutput="";
-			try
-			{ 
-			  cmd = re.exec("java -jar cassa.jar write "+suffixValue); 
-			  output =  new BufferedReader(new InputStreamReader(cmd.getInputStream()));
-			  resultOutput = output.readLine();
-			  System.out.println("updateConfigValue Output -->"+resultOutput);
-			} 
-			catch (IOException e){
-			  e.printStackTrace();
+		public static void init(){
+			Properties properties = new Properties();
+			try {
+				properties.load(new FileInputStream("cassandraClient.properties"));
+			} catch (FileNotFoundException e1) {
+				e1.printStackTrace();
+			} catch (IOException e1) {
+				e1.printStackTrace();
 			}
-			catch(Exception e){
-				e.printStackTrace();
-			}
-			finally{
-				try {
-					output.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
+			
+			String cassandraHost = properties.getProperty("cassandraHost");
+			String clusterName = properties.getProperty("clusterName");
+			String keyspaceName = properties.getProperty("keyspace");
+			
+			AstyanaxContext<Keyspace> keyspaceContext = new AstyanaxContext.Builder()
+		    .forCluster(clusterName)
+		    .forKeyspace(keyspaceName)
+		    .withAstyanaxConfiguration(new AstyanaxConfigurationImpl()      
+		        .setDiscoveryType(NodeDiscoveryType.RING_DESCRIBE)
+		    )
+		    .withConnectionPoolConfiguration(new ConnectionPoolConfigurationImpl("MyConnectionPool")
+		        .setPort(9160)
+		        .setMaxConnsPerHost(1)
+		        .setConnectTimeout(2000)
+		        .setSeeds(cassandraHost+":9160")
+		    )
+		    .withConnectionPoolMonitor(new CountingConnectionPoolMonitor())
+		    .buildKeyspace(ThriftFamilyFactory.getInstance());
+
+			keyspaceContext.start();
+			keyspace = keyspaceContext.getClient();
 		}
 
 		public static String readConfigValue(String suffixkey){
+			Properties properties = new Properties();
 			String suffixValue="";
-			Process cmd;
-			Runtime re = Runtime.getRuntime();
-			BufferedReader output = null;
-			String resultOutput="";
-			try
-			{ 
-			  cmd = re.exec("java -jar cassa.jar read "+suffixkey);
-			  output =  new BufferedReader(new InputStreamReader(cmd.getInputStream()));
-			  resultOutput = output.readLine();
-			  //below hack is to skip all output lines (e.g logger statements) until it find the text '_1 or _2'
-	          while ((resultOutput = output.readLine()) != null) {
-	              suffixValue = resultOutput;
-	         }
+			try {
+				properties.load(new FileInputStream("cassandraClient.properties"));
+			} catch (FileNotFoundException e1) {
+				e1.printStackTrace();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			
+			String configTableName = properties.getProperty("configTable");
+			//MUSICMETRIC_CONFIG
+			ColumnFamily<String, String> CF_INFO =
+					  new ColumnFamily<String, String>(
+					    //"MUSICMETRIC_CONFIG",              // Column Family Name
+						configTableName,
+						StringSerializer.get(),   // Key Serializer
+					    StringSerializer.get());  // Column Serializer
+			
+			OperationResult<ColumnList<String>> result;
+			try {
+				result = keyspace.prepareQuery(CF_INFO).getKey(suffixkey).execute();
+				ColumnList<String> columns = result.getResult();
+				// Lookup columns in response by name 
+				suffixValue = columns.getColumnByName("value").getStringValue();
 			} 
-			catch (IOException e){
-			  e.printStackTrace();
+			catch (ConnectionException e) {
+				e.printStackTrace();
 			}
 			catch(Exception e){
 				e.printStackTrace();
 			}
-			finally{
-				try {
-					output.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
+			
 			return suffixValue;
 		}
+		
+		public static void updateConfigValue(String suffixValue){
+			
+			Properties properties = new Properties();
+			try {
+				properties.load(new FileInputStream("cassandraClient.properties"));
+			} catch (FileNotFoundException e1) {
+				e1.printStackTrace();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			
+			String configTableName = properties.getProperty("configTable");
+			String suffixKey = properties.getProperty("suffixKey");
+			//MUSICMETRIC_CONFIG
+			ColumnFamily<String, String> CF_INFO =
+					  new ColumnFamily<String, String>(
+					    //"MUSICMETRIC_CONFIG",              // Column Family Name
+						configTableName,
+						StringSerializer.get(),   // Key Serializer
+					    StringSerializer.get());  // Column Serializer
+			
+			
+			OperationResult<ColumnList<String>> result;
+			try {
+				//write
+				keyspace.prepareColumnMutation(CF_INFO, suffixKey, "value").putValue(suffixValue, null).execute();
+			}
+			catch (ConnectionException e) {
+				e.printStackTrace();
+			}
+			catch(Exception e){
+				e.printStackTrace();
+			}
 
-
+		}
+		
         public static String filterfilePath(String hadoopListCommandOutput){
             //-rwxr-x---   3 wmgload  hdevel   82028513 2013-09-13 12:45 /data/raw/musicmetrics/facebook/part-r-00000.gz
         	//-rwxr-x---   3 hiveload hdevel   772625   2013-09-16 12:42 /data/raw/musicmetrics/amazon_sales/amazon_sales_data.tsv.gz
             String filterfilePath="";   
         	try{
         		String[] splitArray = hadoopListCommandOutput.split("\\s+");
-                logger.info("splitArray printed "+Arrays.toString(splitArray));
-                logger.info("fullFilePath --> "+splitArray[7]);
+                //logger.info("splitArray printed "+Arrays.toString(splitArray));
+                //logger.info("fullFilePath --> "+splitArray[7]);
                 filterfilePath = splitArray[7];
         	}
         	catch(Exception e){
@@ -102,29 +164,46 @@ public class BulkLoad {
         //   e.g  hdfsDirectory = '/data/raw/musicmetrics/facebook'
         public static List<String> getHDFSFilePaths(String hdfsDirectory){
 
-        	   Process process ;
+        	   Process process =null;
                List<String> filePaths = new ArrayList<String>();
                try
                 {
-                    String[] params =  new String[7];
+/*            	   
+            	   	String[] params =  new String[7];
                     params[0] = "sudo";
                     params[1] = "-u";
                     params[2] = "hdfs";
                     params[3] = "hadoop";
                     params[4] = "fs";
                     params[5] = "-ls";
-                    params[6] = hdfsDirectory+"/*.gz";
+                    params[6] = hdfsDirectory+"/*";
 
                     logger.info("params --> "+Arrays.toString(params));
-                    process = new ProcessBuilder(params).start();
+            		StringBuilder commandString = new StringBuilder();
+            		for(String str : params) {
+            			commandString.append(" ");
+            			commandString.append(str);
+            		}
 
+                    String command = commandString.toString();
+                    logger.info("HDFSFilePaths command about to be executed --> "+command);
+
+                    process = new ProcessBuilder(params).start();
+                    
+  */                  
+                    String hdfsListCommand = "sudo -u hdfs hadoop fs -ls "+hdfsDirectory+"/*";
+                    logger.info("hdfsListCommand command about to be executed --> "+hdfsListCommand);
+                    
+                    //convert string hdfsListCommand to strig array when passing as argument
+                    process =  new ProcessBuilder(hdfsListCommand.split(" ")).start();
+                    
                     InputStream is = process.getInputStream();
                     InputStreamReader isr = new InputStreamReader(is);
                     BufferedReader br = new BufferedReader(isr);
                     String line;
 
                     while ((line = br.readLine()) != null) {
-                              logger.info(line);
+                              //logger.info(line);
                               //get filePath and add it to list; skip the found 'N' items line
                               if(!line.contains("found") && !line.contains("items"))
                             	  filePaths.add(filterfilePath(line));
@@ -143,10 +222,9 @@ public class BulkLoad {
                 return filePaths;
         }
 
-
+/*
         public static void doHDFSDirBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String dirPath){
     		
-//        	Process process;
         	String s = null;
         	Process p ; 
         		try
@@ -173,7 +251,7 @@ public class BulkLoad {
             		}
 
                     String command = commandString.toString();
-                    logger.info("command about to be executed.... "+command);
+                    logger.info("command about to be executed ---> "+command);
                     p = Runtime.getRuntime().exec(command);
                     BufferedReader stdInput = new BufferedReader(new 
                             InputStreamReader(p.getInputStream()));
@@ -198,49 +276,6 @@ public class BulkLoad {
                        stdInput.close();
 
                     
-/*                    process = new ProcessBuilder(params).start();
-                    
-                    InputStream is = process.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(is);
-                    BufferedReader br = new BufferedReader(isr);
-                    String line;
-
-                    while ((line = br.readLine()) != null) {
-                              logger.info(line);
-                    }
-*/
-                    long endTime = System.currentTimeMillis();
-                    logger.info("Completed upload for Column Family --> "+cfName);
-                    logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
-                }
-
-                catch (Exception e) {
-                    logger.error("Exception occurred in upload of CF : "+ cfName + " for input HDFS dir : "+dirPath);
-                    e.printStackTrace();
-                }
-        }
-
-        //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
-        public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
-        		
-        	Process process;
-        		try
-                {
-                    String[] params =  new String[10];
-                    params[0] = "sudo";
-                    params[1] = "-u";
-                    params[2] = jobUser;
-                    params[3] = "hadoop";
-                    params[4] = "jar";
-                    params[5]= jarLocation;
-                    params[6] = fullFilePath;
-                    params[7] = cassandraHost;
-                    params[8] = keyspace;
-                    params[9] = cfName;
-
-                    logger.info("bulk load command params "+Arrays.toString(params));
-                    long startTime = System.currentTimeMillis();
-
                     process = new ProcessBuilder(params).start();
                     
                     InputStream is = process.getInputStream();
@@ -252,6 +287,86 @@ public class BulkLoad {
                               logger.info(line);
                     }
 
+                    long endTime = System.currentTimeMillis();
+                    logger.info("Completed upload for Column Family --> "+cfName);
+                    logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
+                }
+
+                catch (Exception e) {
+                    logger.error("Exception occurred in upload of CF : "+ cfName + " for input HDFS dir : "+dirPath);
+                    e.printStackTrace();
+                }
+        }
+*/
+        //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
+        public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
+        		
+        	String s = null;
+        	Process p ;
+
+        	try
+                {
+                    String[] params =  new String[10];
+                    //params[0] = "sudo";
+                    //params[1] = "-u";
+                   // params[2] = jobUser;
+                    params[0] = "hadoop";
+                    params[1] = "jar";
+                    params[2]= jarLocation;
+                    params[3] = fullFilePath;
+                    params[4] = cassandraHost;
+                    params[5] = keyspace;
+                    params[6] = cfName;
+
+                    String bulkLoadCommand = "sudo -u "+jobUser+" hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
+                    
+                    //logger.info("bulk load command params "+Arrays.toString(params));
+                    long startTime = System.currentTimeMillis();
+
+/*            		StringBuilder commandString = new StringBuilder();
+            		for(String str : params) {
+            			commandString.append(" ");
+            			commandString.append(str);
+            		}
+
+                    String command = commandString.toString();
+*/                  
+                    
+                    logger.info("bulk load command about to be executed ---> "+bulkLoadCommand);
+                    p = Runtime.getRuntime().exec(bulkLoadCommand);
+                    BufferedReader stdInput = new BufferedReader(new 
+                            InputStreamReader(p.getInputStream()));
+
+                       BufferedReader stdError = new BufferedReader(new 
+                            InputStreamReader(p.getErrorStream()));
+
+                       // read the output from the command
+                       logger.info("Here is the standard output of the command:\n");
+                       while ((s = stdInput.readLine()) != null) {
+                    	   logger.info(s);
+                       }
+                       
+                       // read any errors from the attempted command
+                       logger.info("Here is the standard error of the command (if any):\n");
+                       while ((s = stdError.readLine()) != null) {
+                    	   logger.info(s);
+                       }
+                       
+                       
+                       stdError.close();
+                       stdInput.close();
+                    
+/*                    process = new ProcessBuilder(params).start();
+                    
+                    InputStream is = process.getInputStream();
+                    InputStreamReader isr = new InputStreamReader(is);
+                    BufferedReader br = new BufferedReader(isr);
+                    String line;
+
+                    while ((line = br.readLine()) != null) {
+                              logger.info(line);
+                    }
+*/
                     long endTime = System.currentTimeMillis();
                     logger.info("Completed upload for cfName "+cfName);
                     logger.info("Upload for cfName "+cfName+" took " + (endTime - startTime) + " milliseconds");
@@ -281,8 +396,8 @@ public class BulkLoad {
 		        	//Appends the suffix-key value to cfName
         			String cfName = prop.getProperty(key)+suffixValue;
         			
-        			logger.info("filePath = "+dirName);
-        			logger.info("CF Name = "+cfName);
+        			//logger.info("filePath = "+dirName);
+        			//logger.info("CF Name = "+cfName);
         			
         			filePathCFMapping.put(dirName, cfName);
 		        } 
@@ -298,12 +413,12 @@ public class BulkLoad {
     		
         	return filePathCFMapping;
     	}
-
-        // java -cp ./ com.hadoop.BulkLoad /data/raw/musicmetrics/facebook facebook_1
-        public static void main(String[] args) {
-
+    	
+    	
+    	public static void startBulkLoad() {
+    		
         	try{
-                long startTime = System.currentTimeMillis();
+        		long startTime = System.currentTimeMillis();
         		logger.info("Starting BulkLoad Process ..........");
 
                 Properties properties = new Properties();  
@@ -314,19 +429,16 @@ public class BulkLoad {
 		        String keyspace = properties.getProperty("keyspace");
 		        String cassandraHost = properties.getProperty("cassandraHost");
                 
-
-        		//String currentSuffixKey = CassandraWriter.readConfigValue("suffix-key");
-		        
-                //String applySuffixValue = properties.getProperty("applySuffixValue");
         		String applySuffixValue = properties.getProperty("applySuffixValue")==null?"":properties.getProperty("applySuffixValue");
-
                 String currentSuffixKey="";
 
 		        //If this value is present, then it overrides the whole switch mechanism on bulkLoad side, because then we don't use the suffix-key value present in table. 
                 if(applySuffixValue.isEmpty()){
                 	logger.info("applySuffixValue is blank so reading value from config table");
-    		        currentSuffixKey = readConfigValue("suffix-key");
-            		logger.info("current suffixKey -> "+currentSuffixKey);
+    		        //currentSuffixKey = readConfigValue("suffix-key");
+                	currentSuffixKey = readConfigValue("suffix-key");
+                	
+                	logger.info("current suffixKey -> "+currentSuffixKey);
             		if(currentSuffixKey.equals("_1"))
             			applySuffixValue="_2";
             		else if(currentSuffixKey.equals("_2"))
@@ -353,7 +465,6 @@ public class BulkLoad {
         				String cfName=  (String) entry.getValue();
         				logger.info(dirPath+" --> "+cfName);
 
-/*        				
         				//Step 3 : Get all files for each Mapped dir
                         List<String> files = getHDFSFilePaths(dirPath);
                         logger.info("No. of files found under HDFS dir "+ dirPath + " : "+files.size());
@@ -361,32 +472,26 @@ public class BulkLoad {
                         //Step 4 : load data from each file->CF Mapping
                         for(String filePath:files){
                             logger.info("Doing file upload for file "+filePath);
-                            //doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
-                            logger.info("Completed  "+filePath);
+                            doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
+                            logger.info("Completed.");
                         }
-*/                        
                         
-        				doHDFSDirBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,dirPath);
-
+        				//doHDFSDirBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,dirPath);
         			}
         		}
         		else{
         			logger.info("No data to process !!");
         			logger.info("Ending BulkLoad");
         		}
-
-        		
                 
                 long endTime = System.currentTimeMillis();
                 long millis = endTime - startTime;
                 logger.info("Bulk Load Process Finished !!! ");
               
-                
                 //logger.info("Updating suffix-key value with -->"+applySuffixValue);
                 //updateConfigValue(applySuffixValue);
                 //logger.info("Updated the MUSICMETRIC_CONFIG table");
 
-                
                 logger.info("Overall Upload Process took total " + (endTime - startTime) + " milliseconds");
 
                 String timeUsed = String.format("%d min, %d sec",
@@ -402,6 +507,14 @@ public class BulkLoad {
         		e.printStackTrace();
         	}
 
+    	}
+    	
+        // java -cp ./ com.hadoop.BulkLoad /data/raw/musicmetrics/facebook facebook_1
+        public static void main(String[] args) {
+        	//initialize astyanax 
+        	init();
+        	//start the bulk Load in cassandra
+        	startBulkLoad();
         }
 
 }
