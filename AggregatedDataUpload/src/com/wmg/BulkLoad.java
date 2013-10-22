@@ -6,16 +6,22 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 
 import com.netflix.astyanax.AstyanaxContext;
@@ -30,6 +36,7 @@ import com.netflix.astyanax.model.ColumnFamily;
 import com.netflix.astyanax.model.ColumnList;
 import com.netflix.astyanax.serializers.StringSerializer;
 import com.netflix.astyanax.thrift.ThriftFamilyFactory;
+import com.wmg.util.OrderedProperties;
 
 public class BulkLoad {
 
@@ -143,7 +150,7 @@ public class BulkLoad {
 
 		}
 		
-        public static String filterfilePath(String hadoopListCommandOutput){
+/*        public static String filterfilePath(String hadoopListCommandOutput){
             //-rwxr-x---   3 wmgload  hdevel   82028513 2013-09-13 12:45 /data/raw/musicmetrics/facebook/part-r-00000.gz
         	//-rwxr-x---   3 hiveload hdevel   772625   2013-09-16 12:42 /data/raw/musicmetrics/amazon_sales/amazon_sales_data.tsv.gz
             String filterfilePath="";   
@@ -160,50 +167,50 @@ public class BulkLoad {
         	}
 			return filterfilePath;
         }
+*/
+        /**
+         * Finds relative path of files under HDFS dir using Hadoop Interface
+         * @param uri
+         * @param dirPath
+         * @throws IOException
+         */
+    	private static List<String> getHdfsFiles(String hdfsUriPrefix,String dirPath) throws IOException {
+    		String uri = hdfsUriPrefix+dirPath;
+    		Configuration conf = new Configuration();
+    		FileSystem fs = FileSystem.get(URI.create(uri),conf);
+    		
+    		Path path = new Path(uri);
+    		List<String> filePaths = new ArrayList<String>();
+    		
+    		FileStatus[] status = fs.listStatus(path);
+    		Path[] listedPaths = FileUtil.stat2Paths(status);
+    		String filePath="";
+    		for(Path p : listedPaths){
+    			filePath = dirPath+"/"+p.getName();
+    			filePaths.add(filePath);
+    		}
+    		return filePaths;
+    	}
 
-        //   e.g  hdfsDirectory = '/data/raw/musicmetrics/facebook'
+/*        //   e.g  hdfsDirectory = '/data/raw/musicmetrics/facebook'
         public static List<String> getHDFSFilePaths(String hdfsDirectory){
-
         	   Process process =null;
+        		//Process p =null;
+        	   String s=null;
                List<String> filePaths = new ArrayList<String>();
                try
                 {
-/*            	   
-            	   	String[] params =  new String[7];
-                    params[0] = "sudo";
-                    params[1] = "-u";
-                    params[2] = "hdfs";
-                    params[3] = "hadoop";
-                    params[4] = "fs";
-                    params[5] = "-ls";
-                    params[6] = hdfsDirectory+"/*";
-
-                    logger.info("params --> "+Arrays.toString(params));
-            		StringBuilder commandString = new StringBuilder();
-            		for(String str : params) {
-            			commandString.append(" ");
-            			commandString.append(str);
-            		}
-
-                    String command = commandString.toString();
-                    logger.info("HDFSFilePaths command about to be executed --> "+command);
-
-                    process = new ProcessBuilder(params).start();
-                    
-  */                  
                     String hdfsListCommand = "sudo -u hdfs hadoop fs -ls "+hdfsDirectory+"/*";
                     logger.info("hdfsListCommand command about to be executed --> "+hdfsListCommand);
                     
-                    //convert string hdfsListCommand to strig array when passing as argument
+                    //convert string hdfsListCommand to string array when passing as argument
                     process =  new ProcessBuilder(hdfsListCommand.split(" ")).start();
-                    
                     InputStream is = process.getInputStream();
                     InputStreamReader isr = new InputStreamReader(is);
                     BufferedReader br = new BufferedReader(isr);
                     String line;
 
                     while ((line = br.readLine()) != null) {
-                              //logger.info(line);
                               //get filePath and add it to list; skip the found 'N' items line
                               if(!line.contains("found") && !line.contains("items"))
                             	  filePaths.add(filterfilePath(line));
@@ -221,8 +228,9 @@ public class BulkLoad {
 
                 return filePaths;
         }
+*/
+    	
 
-/*
         public static void doHDFSDirBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String dirPath){
     		
         	String s = null;
@@ -276,86 +284,6 @@ public class BulkLoad {
                        stdInput.close();
 
                     
-                    process = new ProcessBuilder(params).start();
-                    
-                    InputStream is = process.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(is);
-                    BufferedReader br = new BufferedReader(isr);
-                    String line;
-
-                    while ((line = br.readLine()) != null) {
-                              logger.info(line);
-                    }
-
-                    long endTime = System.currentTimeMillis();
-                    logger.info("Completed upload for Column Family --> "+cfName);
-                    logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
-                }
-
-                catch (Exception e) {
-                    logger.error("Exception occurred in upload of CF : "+ cfName + " for input HDFS dir : "+dirPath);
-                    e.printStackTrace();
-                }
-        }
-*/
-        //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
-        public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
-        		
-        	String s = null;
-        	Process p ;
-
-        	try
-                {
-                    String[] params =  new String[10];
-                    //params[0] = "sudo";
-                    //params[1] = "-u";
-                   // params[2] = jobUser;
-                    params[0] = "hadoop";
-                    params[1] = "jar";
-                    params[2]= jarLocation;
-                    params[3] = fullFilePath;
-                    params[4] = cassandraHost;
-                    params[5] = keyspace;
-                    params[6] = cfName;
-
-                    String bulkLoadCommand = "sudo -u "+jobUser+" hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
-                    
-                    //logger.info("bulk load command params "+Arrays.toString(params));
-                    long startTime = System.currentTimeMillis();
-
-/*            		StringBuilder commandString = new StringBuilder();
-            		for(String str : params) {
-            			commandString.append(" ");
-            			commandString.append(str);
-            		}
-
-                    String command = commandString.toString();
-*/                  
-                    
-                    logger.info("bulk load command about to be executed ---> "+bulkLoadCommand);
-                    p = Runtime.getRuntime().exec(bulkLoadCommand);
-                    BufferedReader stdInput = new BufferedReader(new 
-                            InputStreamReader(p.getInputStream()));
-
-                       BufferedReader stdError = new BufferedReader(new 
-                            InputStreamReader(p.getErrorStream()));
-
-                       // read the output from the command
-                       logger.info("Here is the standard output of the command:\n");
-                       while ((s = stdInput.readLine()) != null) {
-                    	   logger.info(s);
-                       }
-                       
-                       // read any errors from the attempted command
-                       logger.info("Here is the standard error of the command (if any):\n");
-                       while ((s = stdError.readLine()) != null) {
-                    	   logger.info(s);
-                       }
-                       
-                       
-                       stdError.close();
-                       stdInput.close();
-                    
 /*                    process = new ProcessBuilder(params).start();
                     
                     InputStream is = process.getInputStream();
@@ -368,6 +296,84 @@ public class BulkLoad {
                     }
 */
                     long endTime = System.currentTimeMillis();
+                    logger.info("Completed upload for Column Family --> "+cfName);
+                    logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
+                }
+
+                catch (Exception e) {
+                    logger.error("Exception occurred in upload of CF : "+ cfName + " for input HDFS dir : "+dirPath);
+                    e.printStackTrace();
+                }
+        }
+
+        //executes  for e.g--> sudo -u wmgload hadoop jar /usr/local/code/musicmetric/BulkLoader.jar /user/VishalS/facebook-data.tsv 10.70.99.144 MusicMetricData Radio_Plays_1;
+        public static void doBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String fullFilePath){
+        	String s = null;
+        	Process p ;
+        	try
+                {
+        			long startTime = System.currentTimeMillis();
+        			
+        			String[] params =  new String[10];
+                    params[0] = "sudo";
+                    params[1] = "-u";
+                    params[2] = jobUser;
+                    params[3] = "hadoop";
+                    params[4] = "jar";
+                    params[5]= jarLocation;
+                    params[6] = fullFilePath;
+                    params[7] = cassandraHost;
+                    params[8] = keyspace;
+                    params[9] = cfName;
+
+/*                    String bulkLoadCommand = "sudo -u "+jobUser+" hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
+                    
+                    logger.info("bulk load command about to be executed ---> "+bulkLoadCommand);
+                    p = Runtime.getRuntime().exec(bulkLoadCommand);
+                    BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                    BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+
+                    // read the output from the command
+                    logger.info("Here is the standard output of the command:\n");
+                    while ((s = stdInput.readLine()) != null) {
+                    	   logger.info(s);
+                    }
+                       
+                    // read any errors from the attempted command
+                    logger.info("Here is the standard error of the command (if any):\n");
+                    while ((s = stdError.readLine()) != null) {
+                    	   logger.info(s);
+                    }
+                    stdError.close();
+                    stdInput.close();
+*/
+                    
+            		StringBuilder commandString = new StringBuilder();
+            		for(String str : params) {
+            			commandString.append(" ");
+            			commandString.append(str);
+            		}
+            		//logger.info("bulk load command params "+Arrays.toString(params));
+                    String command = commandString.toString();
+                    logger.info("bulk load command  "+command);
+                    
+                    p = new ProcessBuilder(params).start();
+                    
+                    InputStream is = p.getInputStream();
+                    InputStreamReader isr = new InputStreamReader(is);
+                    BufferedReader br = new BufferedReader(isr);
+                    String line;
+
+                    while ((line = br.readLine()) != null) {
+                              logger.info(line);
+                    }
+                    br.close();
+                	// wait for the task complete
+                    p.waitFor();
+                    int ret = p.exitValue();
+                    logger.info("return value -->"+ret);
+                    
+                    long endTime = System.currentTimeMillis();
                     logger.info("Completed upload for cfName "+cfName);
                     logger.info("Upload for cfName "+cfName+" took " + (endTime - startTime) + " milliseconds");
                 }
@@ -379,9 +385,9 @@ public class BulkLoad {
         }
 
         //gets HashMap  of (key:HDFS dir,value: cfname) based on data in config.properties file
-    	public static HashMap<String, String> loadCFMapping(String suffixValue) {
-    		Properties prop = new Properties();
-        	HashMap<String,String> filePathCFMapping  =  new HashMap<String,String>();
+    	public static LinkedHashMap<String, String> loadCFMapping(String suffixValue) {
+    		OrderedProperties prop = new OrderedProperties();
+    		LinkedHashMap<String,String> filePathCFMapping  =  new LinkedHashMap<String,String>();
         	try 
         	{
         		prop.load(new FileInputStream("CFMapping.properties"));
@@ -390,15 +396,9 @@ public class BulkLoad {
 		        while (e.hasMoreElements()) 
 		        { 
 		        	key = (String)e.nextElement(); 
-		        	//logger.info(key+" "+prop.getProperty(key)); 
-
 		        	String dirName = key;
 		        	//Appends the suffix-key value to cfName
         			String cfName = prop.getProperty(key)+suffixValue;
-        			
-        			//logger.info("filePath = "+dirName);
-        			//logger.info("CF Name = "+cfName);
-        			
         			filePathCFMapping.put(dirName, cfName);
 		        } 
         	} 
@@ -428,7 +428,8 @@ public class BulkLoad {
             	String jarLocation = properties.getProperty("jarLocation");
 		        String keyspace = properties.getProperty("keyspace");
 		        String cassandraHost = properties.getProperty("cassandraHost");
-                
+		        String hdfsUriPrefix= properties.getProperty("hdfsUriPrefix");
+		        
         		String applySuffixValue = properties.getProperty("applySuffixValue")==null?"":properties.getProperty("applySuffixValue");
                 String currentSuffixKey="";
 
@@ -454,7 +455,7 @@ public class BulkLoad {
                 }
                 
                 //Step 1 : Load CF Mapping from config file
-                HashMap<String,String> dirCFNameMapping = loadCFMapping(applySuffixValue);
+                LinkedHashMap<String,String> dirCFNameMapping = loadCFMapping(applySuffixValue);
                 
                 //Step 2: Iterate over Mapping and bulkLoad data
         		if(dirCFNameMapping.size()>0){
@@ -464,9 +465,10 @@ public class BulkLoad {
         				String dirPath = (String) entry.getKey();
         				String cfName=  (String) entry.getValue();
         				logger.info(dirPath+" --> "+cfName);
-
+/*
         				//Step 3 : Get all files for each Mapped dir
-                        List<String> files = getHDFSFilePaths(dirPath);
+                        //List<String> files = getHDFSFilePaths(dirPath);
+        				List<String> files = getHdfsFiles(hdfsUriPrefix, dirPath);
                         logger.info("No. of files found under HDFS dir "+ dirPath + " : "+files.size());
                         
                         //Step 4 : load data from each file->CF Mapping
@@ -475,8 +477,8 @@ public class BulkLoad {
                             doBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,filePath);
                             logger.info("Completed.");
                         }
-                        
-        				//doHDFSDirBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,dirPath);
+*/                        
+        				doHDFSDirBulkLoad(jobUser,jarLocation,cassandraHost,keyspace,cfName,dirPath);
         			}
         		}
         		else{

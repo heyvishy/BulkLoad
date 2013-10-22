@@ -1,6 +1,8 @@
 package com.wmg.utilities;
 
-import org.apache.commons.lang.StringUtils;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.log4j.Logger;
 
 public class HelloWorld {
@@ -9,16 +11,22 @@ public class HelloWorld {
 	
 	public static void main(String[] args) {
 		
-		logger.info("hey everybody. how is it going !!");
+//		logger.info("hey everybody. how is it going !!");
 		String someString= "vishal";
 		
-		if(StringUtils.isBlank(someString)){
+		List<String> content = new ArrayList<String>();
+		content.add("vishal");
+		content.add("shukla");
+		
+		System.out.println("content -->"+content);
+		
+/*		if(StringUtils.isBlank(someString)){
 			logger.info("String is blank");
 		}
 		else{
 			logger.info("String is NOT blank");
 		}
-	
+*/	
 	}
 
 }

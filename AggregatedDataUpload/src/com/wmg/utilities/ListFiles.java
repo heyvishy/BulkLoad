@@ -6,24 +6,22 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 
-public class hadoopListFiles {
+public class ListFiles {
 
 	public static void main(String[] args) {
 		//sudo -u hdfs hadoop fs -ls /data/raw/musicmetrics/facebook/*.gz
-		
+		//find /home/VishalS/backup/data/ -type f
 		Process process ;
+		String dirPath ="/home/VishalS/backup/data/";
 		try 
 		{
-			System.out.println("Finding all files on HDFS directory "+args[0]);
+			System.out.println("Finding all files on unix directory "+args[0]);
 			
 			String[] params =  new String[7];
-			params[0] = "sudo";
-			params[1] = "-u";
-			params[2] = "hdfs";
-			params[3] = "hadoop";
-			params[4] = "fs";
-			params[5] = "-ls";
-			params[6] = args[0]+"/*.gz";
+			params[0] = "find";
+			params[1] = "dirPath";
+			params[2] = "-type";
+			params[3] = "f";
 	
 			System.out.println("params --> "+Arrays.toString(params));
 			process = new ProcessBuilder(params).start();

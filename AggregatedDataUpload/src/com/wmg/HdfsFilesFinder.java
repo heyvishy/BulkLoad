@@ -24,6 +24,7 @@ public class HdfsFilesFinder{
                 	logger.info("starting....1");
                         
                      // you need to pass in your hdfs path
+                	//hdfs://mahat001.wmg.com:8020
                         // hdfs://mahat001.wmg.com:8020/data/raw/musicmetrics/lastfm
                         FileStatus[] status = fs.listStatus(new Path(hdfsPath));
                         
