@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -53,6 +52,9 @@ public class BulkLoad {
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
+			catch (Exception e1) {
+				e1.printStackTrace();
+			}			
 			
 			String cassandraHost = properties.getProperty("cassandraHost");
 			String clusterName = properties.getProperty("clusterName");
@@ -85,6 +87,9 @@ public class BulkLoad {
 			} catch (FileNotFoundException e1) {
 				e1.printStackTrace();
 			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			catch (Exception e1) {
 				e1.printStackTrace();
 			}
 			
@@ -124,6 +129,9 @@ public class BulkLoad {
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
+			catch (Exception e1) {
+				e1.printStackTrace();
+			}			
 			
 			String configTableName = properties.getProperty("configTable");
 			String suffixKey = properties.getProperty("suffixKey");
@@ -150,24 +158,6 @@ public class BulkLoad {
 
 		}
 		
-/*        public static String filterfilePath(String hadoopListCommandOutput){
-            //-rwxr-x---   3 wmgload  hdevel   82028513 2013-09-13 12:45 /data/raw/musicmetrics/facebook/part-r-00000.gz
-        	//-rwxr-x---   3 hiveload hdevel   772625   2013-09-16 12:42 /data/raw/musicmetrics/amazon_sales/amazon_sales_data.tsv.gz
-            String filterfilePath="";   
-        	try{
-        		String[] splitArray = hadoopListCommandOutput.split("\\s+");
-                //logger.info("splitArray printed "+Arrays.toString(splitArray));
-                //logger.info("fullFilePath --> "+splitArray[7]);
-                filterfilePath = splitArray[7];
-        	}
-        	catch(Exception e){
-        		logger.error("exception in filterfilePath"+e.toString());
-        		e.printStackTrace();
-        		filterfilePath="";
-        	}
-			return filterfilePath;
-        }
-*/
         /**
          * Finds relative path of files under HDFS dir using Hadoop Interface
          * @param uri
@@ -191,53 +181,26 @@ public class BulkLoad {
     		}
     		return filePaths;
     	}
-
-/*        //   e.g  hdfsDirectory = '/data/raw/musicmetrics/facebook'
-        public static List<String> getHDFSFilePaths(String hdfsDirectory){
-        	   Process process =null;
-        		//Process p =null;
-        	   String s=null;
-               List<String> filePaths = new ArrayList<String>();
-               try
-                {
-                    String hdfsListCommand = "sudo -u hdfs hadoop fs -ls "+hdfsDirectory+"/*";
-                    logger.info("hdfsListCommand command about to be executed --> "+hdfsListCommand);
-                    
-                    //convert string hdfsListCommand to string array when passing as argument
-                    process =  new ProcessBuilder(hdfsListCommand.split(" ")).start();
-                    InputStream is = process.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(is);
-                    BufferedReader br = new BufferedReader(isr);
-                    String line;
-
-                    while ((line = br.readLine()) != null) {
-                              //get filePath and add it to list; skip the found 'N' items line
-                              if(!line.contains("found") && !line.contains("items"))
-                            	  filePaths.add(filterfilePath(line));
-                    }
-                }
-
-                catch (IOException e) {
-                	logger.error("Exception in getFilePaths method "+e.getMessage());
-                	e.printStackTrace();
-                }
-                catch (Exception e) {
-                	logger.error("Exception in getFilePaths method "+e.getMessage());
-                	e.printStackTrace();
-                }
-
-                return filePaths;
-        }
-*/
     	
-
+    	/**
+    	 * Uploads all files under a given hdfs directory 
+    	 * @param jobUser
+    	 * @param jarLocation
+    	 * @param cassandraHost
+    	 * @param keyspace
+    	 * @param cfName
+    	 * @param dirPath
+    	 */
         public static void doHDFSDirBulkLoad(String jobUser,String jarLocation,String cassandraHost,String keyspace,String cfName,String dirPath){
     		
         	String s = null;
         	Process p ; 
         		try
                 {
-                    String[] params =  new String[10];
+        			long startTime = System.currentTimeMillis();
+        			
+/*                    String[] params =  new String[10];
+                    
                     params[0] = "sudo";
                     params[1] = "-u";
                     params[2] = jobUser;
@@ -250,7 +213,7 @@ public class BulkLoad {
                     params[9] = cfName;
 
                     logger.info("doHDFSDirBulkLoad command params "+Arrays.toString(params));
-                    long startTime = System.currentTimeMillis();
+                    
 
             		StringBuilder commandString = new StringBuilder();
             		for(String str : params) {
@@ -279,22 +242,39 @@ public class BulkLoad {
                     	   logger.info(s);
                        }
                        
-                       
                        stdError.close();
                        stdInput.close();
-
-                    
-/*                    process = new ProcessBuilder(params).start();
-                    
-                    InputStream is = process.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(is);
-                    BufferedReader br = new BufferedReader(isr);
-                    String line;
-
-                    while ((line = br.readLine()) != null) {
-                              logger.info(line);
-                    }
 */
+                  
+                   //String bulkLoadDirectoryCommand  = "sudo -u "+jobUser+ " hadoop jar "+jarLocation+" "+dirPath+"/"+" "+cassandraHost+" "+ keyspace+" "+cfName;
+        			String bulkLoadDirectoryCommand  = "hadoop jar "+jarLocation+" "+dirPath+"/"+" "+cassandraHost+" "+ keyspace+" "+cfName;
+                   logger.info("bulkLoadDirectoryCommand to be executed  "+bulkLoadDirectoryCommand);
+                    String[] command = bulkLoadDirectoryCommand.split(" ");
+                    p = new ProcessBuilder(command).start();
+                    
+                    BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                    BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+
+                    // read the output from the command
+                    logger.info("Here is the standard output of the command:\n");
+                    while ((s = stdInput.readLine()) != null) {
+                    	   logger.info(s);
+                    }
+                       
+                    // read any errors from the attempted command
+                    logger.info("Here is the standard error of the command (if any):\n");
+                    while ((s = stdError.readLine()) != null) {
+                    		logger.info(s);
+                    }
+                       
+                     stdError.close();
+                     stdInput.close();
+ 
+                     // wait for the task complete
+                    p.waitFor();
+                    int ret = p.exitValue();
+                    logger.info("return value -->"+ret);
+
                     long endTime = System.currentTimeMillis();
                     logger.info("Completed upload for Column Family --> "+cfName);
                     logger.info("Upload for Column Family "+cfName+" took " + (endTime - startTime) + " milliseconds");
@@ -313,52 +293,11 @@ public class BulkLoad {
         	try
                 {
         			long startTime = System.currentTimeMillis();
-        			
-        			String[] params =  new String[10];
-                    params[0] = "sudo";
-                    params[1] = "-u";
-                    params[2] = jobUser;
-                    params[3] = "hadoop";
-                    params[4] = "jar";
-                    params[5]= jarLocation;
-                    params[6] = fullFilePath;
-                    params[7] = cassandraHost;
-                    params[8] = keyspace;
-                    params[9] = cfName;
-
-/*                    String bulkLoadCommand = "sudo -u "+jobUser+" hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
-                    
-                    logger.info("bulk load command about to be executed ---> "+bulkLoadCommand);
-                    p = Runtime.getRuntime().exec(bulkLoadCommand);
-                    BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                    BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-
-                    // read the output from the command
-                    logger.info("Here is the standard output of the command:\n");
-                    while ((s = stdInput.readLine()) != null) {
-                    	   logger.info(s);
-                    }
-                       
-                    // read any errors from the attempted command
-                    logger.info("Here is the standard error of the command (if any):\n");
-                    while ((s = stdError.readLine()) != null) {
-                    	   logger.info(s);
-                    }
-                    stdError.close();
-                    stdInput.close();
-*/
-                    
-            		StringBuilder commandString = new StringBuilder();
-            		for(String str : params) {
-            			commandString.append(" ");
-            			commandString.append(str);
-            		}
-            		//logger.info("bulk load command params "+Arrays.toString(params));
-                    String command = commandString.toString();
-                    logger.info("bulk load command  "+command);
-                    
-                    p = new ProcessBuilder(params).start();
-                    
+                    //String bulkLoadCommand = "sudo -u "+jobUser+" hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
+        			String bulkLoadCommand = "hadoop jar "+jarLocation+" "+fullFilePath+" "+cassandraHost+" "+keyspace+" "+cfName;
+                    logger.info("bulk load command to be executed  "+bulkLoadCommand);
+                    String[] command = bulkLoadCommand.split(" ");
+                    p = new ProcessBuilder(command).start();
                     InputStream is = p.getInputStream();
                     InputStreamReader isr = new InputStreamReader(is);
                     BufferedReader br = new BufferedReader(isr);
@@ -436,7 +375,6 @@ public class BulkLoad {
 		        //If this value is present, then it overrides the whole switch mechanism on bulkLoad side, because then we don't use the suffix-key value present in table. 
                 if(applySuffixValue.isEmpty()){
                 	logger.info("applySuffixValue is blank so reading value from config table");
-    		        //currentSuffixKey = readConfigValue("suffix-key");
                 	currentSuffixKey = readConfigValue("suffix-key");
                 	
                 	logger.info("current suffixKey -> "+currentSuffixKey);
@@ -511,7 +449,6 @@ public class BulkLoad {
 
     	}
     	
-        // java -cp ./ com.hadoop.BulkLoad /data/raw/musicmetrics/facebook facebook_1
         public static void main(String[] args) {
         	//initialize astyanax 
         	init();
