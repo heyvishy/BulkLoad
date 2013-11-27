@@ -63,7 +63,7 @@ public class BulkLoad {
 			AstyanaxContext<Keyspace> keyspaceContext = new AstyanaxContext.Builder()
 		    .forCluster(clusterName)
 		    .forKeyspace(keyspaceName)
-		    .withAstyanaxConfiguration(new AstyanaxConfigurationImpl()      
+		    .withAstyanaxConfiguration(new AstyanaxConfigurationImpl()
 		        .setDiscoveryType(NodeDiscoveryType.RING_DESCRIBE)
 		    )
 		    .withConnectionPoolConfiguration(new ConnectionPoolConfigurationImpl("MyConnectionPool")
@@ -271,9 +271,9 @@ public class BulkLoad {
                      stdInput.close();
  
                      // wait for the task complete
-                    p.waitFor();
-                    int ret = p.exitValue();
-                    logger.info("return value -->"+ret);
+                    //p.waitFor();
+                    //int ret = p.exitValue();
+                    //logger.info("return value -->"+ret);
 
                     long endTime = System.currentTimeMillis();
                     logger.info("Completed upload for Column Family --> "+cfName);
