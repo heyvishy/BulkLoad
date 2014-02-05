@@ -1,4 +1,4 @@
-package com.wmg;
+package com.vishal.bulkDelete;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -32,10 +32,15 @@ public class BulkDeleteRecursive {
 	private static AstyanaxContext<Keyspace> keyspaceContext;
 	private static List<String> cfNames = new ArrayList<String>();
 	
+	/**
+	 * 
+	 * Main method that kicks of the process to deletes all rows from Cassandra column family(i.e table)
+	 */
 	public static void main(String args[]){
 		
+		//initialize Cassandra DB connetion
 		init();
-		//initialize
+		
 		boolean isDBNotClean = true;
 		
 		//do clean up, untill DB is cleaned
@@ -46,8 +51,10 @@ public class BulkDeleteRecursive {
 		
 	}
 	
-	//public static void deleteData()
-	
+	/**
+	 * delete all data from given colum family 
+	 * @param cfNames List of ColumnFamily Names
+	 */
 	public static void deleteAllData(List<String> cfNames){
 		//delete all tables in truncateCF.properties; appropriate ones will be deleted based on suffix-key value in configTable
 		for(String tableName:cfNames){
@@ -66,6 +73,10 @@ public class BulkDeleteRecursive {
 		}
 	}
 	
+	/**
+	 * Checks whether DB is clean
+	 * @return
+	 */
 	public static  boolean isDatabaseClean(){
 		boolean isClean = true;
 		logger.info("Assuming isClean :---> "+isClean);
@@ -81,6 +92,9 @@ public class BulkDeleteRecursive {
 		return isClean;
 	}
 	
+	/**
+	 * DB initialization
+	 */
 	public static void init(){
 		Properties properties = new Properties();
 		Properties cfNameProperties = new Properties();
@@ -103,7 +117,6 @@ public class BulkDeleteRecursive {
 	    .forCluster(clusterName)
 	    .forKeyspace(keyspaceName)
 	    .withAstyanaxConfiguration(new AstyanaxConfigurationImpl()
-	    	//.setTargetCassandraVersion("1.2")
 	        .setDiscoveryType(NodeDiscoveryType.RING_DESCRIBE)
 	    )
 	    .withConnectionPoolConfiguration(new ConnectionPoolConfigurationImpl("MyConnectionPool")
@@ -123,7 +136,6 @@ public class BulkDeleteRecursive {
 		//below code finds current suffix-key value and sets that value in static variable 'suffixValue'
 		ColumnFamily<String, String> CF_INFO =
 				  new ColumnFamily<String, String>(
-				    //"MUSICMETRIC_CONFIG",              // Column Family Name
 					configTableName,
 					StringSerializer.get(),   // Key Serializer
 				    StringSerializer.get());  // Column Serializer
@@ -161,6 +173,12 @@ public class BulkDeleteRecursive {
 		}
 	}
 	
+	
+	/**
+	 * Checks if any rows exists for given Column Family		
+	 * @param columnFamilyName
+	 * @return
+	 */
 	public static boolean hasRows(String columnFamilyName){
 		boolean hasRows = false;
 		ColumnFamily<String, String> CF_INFO =  new ColumnFamily<String, String>(columnFamilyName,StringSerializer.get(),StringSerializer.get());
